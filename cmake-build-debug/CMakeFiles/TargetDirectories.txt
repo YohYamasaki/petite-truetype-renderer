@@ -1,3 +1,0 @@
-/home/yoh/dev/repositories/petite-truetype-renderer/cmake-build-debug/CMakeFiles/petite_truetype_renderer.dir
-/home/yoh/dev/repositories/petite-truetype-renderer/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/yoh/dev/repositories/petite-truetype-renderer/cmake-build-debug/CMakeFiles/rebuild_cache.dir

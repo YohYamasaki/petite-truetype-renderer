@@ -1,25 +1,16 @@
 #include <fstream>
-#include <iostream>
 
 #include "FontReader.h"
+#include "FrameBufferCanvas.h"
+
 
 int main() {
-  FontReader reader("fonts/Roboto-Regular.ttf");
+  FontReader reader("fonts/JetBrainsMono-Bold.ttf");
+  FrameBufferCanvas canvas{1200, 1200};
+  const Glyph glyph = reader.getGlyph('j');
+  glyph.printDebugInfo();
+  canvas.renderGlyph(300, 200, glyph, RGB{255});
 
-  reader.skipBytes(sizeof(uint32_t));  // skip sfntVersion
-  const uint16_t numTables = reader.readUint16();
-
-  std::cout << "numTables: " << numTables << std::endl;
-  reader.skipBytes(sizeof(uint16_t) *
-                   3);  // skip searchRange, entrySelector, rangeShift
-
-  for (int i = 0; i < numTables; ++i) {
-    const auto tag = reader.readTag();
-    const auto checkSum = reader.readUint32();
-    const auto offset = reader.readUint32();
-    const auto length = reader.readUint32();
-    std::cout << "tag: " << tag << " "
-              << "offset: " << offset << std::endl;
-  }
+  canvas.writePngFile("hoge.png");
   return 0;
 }
