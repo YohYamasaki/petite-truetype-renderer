@@ -4,22 +4,26 @@ project(petite_truetype_renderer)
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(Stb REQUIRED)
+find_package(glm CONFIG REQUIRED)
 
 add_executable(petite_truetype_renderer main.cpp
         FontReader.cpp
         FontReader.h
         utils/Bit.cpp
         utils/Bit.h
-        Glyph.cpp
-        Glyph.h
+        GlyphComponent.cpp
+        GlyphComponent.h
         FrameBufferCanvas.cpp
         FrameBufferCanvas.h
         FrameBufferCanvas.h
         utils/Geometry.h
         utils/Debug.h
-        utils/Unicode.h)
+        utils/Unicode.h
+        Glyph.cpp
+        Glyph.h)
 
 target_include_directories(petite_truetype_renderer PRIVATE ${Stb_INCLUDE_DIR})
+target_link_libraries(petite_truetype_renderer PRIVATE glm::glm)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 

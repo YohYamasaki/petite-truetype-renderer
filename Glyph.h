@@ -1,38 +1,24 @@
 //
-// Created by yoh on 28/09/25.
+// Created by yoh on 03/10/25.
 //
 
 #ifndef GLYPH_H
 #define GLYPH_H
-#include <cstdint>
-#include <set>
-#include <vector>
-
-#include "utils/Geometry.h"
+#include "GlyphComponent.h"
 
 
 class Glyph {
 public:
-  explicit Glyph(uint16_t numOfVertices,
-                 std::set<uint16_t> endPtsOfContours,
-                 BoundingRect boundingRect,
-                 std::vector<int> xCoordinates,
-                 std::vector<int> yCoordinates);
-  [[nodiscard]] uint16_t getNumOfVertices() const;
-  [[nodiscard]] std::vector<int> getXCoordinates() const;
-  [[nodiscard]] std::vector<int> getYCoordinates() const;
-  [[nodiscard]] std::set<uint16_t> getEndPtsOfContours() const;
-  [[nodiscard]] BoundingRect getBoundingRect() const;
-
+  Glyph() = default;
+  explicit Glyph(std::vector<GlyphComponent> components_);
+  explicit Glyph(std::vector<GlyphComponent> components_, BoundingRect rect);
+  [[nodiscard]] std::vector<GlyphComponent> getComponents() const;
   void printDebugInfo() const;
-  static Glyph EmptyGlyph();
 
 private:
-  uint16_t numOfVertices;
-  std::set<uint16_t> endPtsOfContours;
-  BoundingRect boundingRect;
-  std::vector<int> xCoordinates;
-  std::vector<int> yCoordinates;
+  std::vector<GlyphComponent> components;
+  BoundingRect rect;
 };
 
-#endif  // GLYPH_H
+
+#endif //GLYPH_H

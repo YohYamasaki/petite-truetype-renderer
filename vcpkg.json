@@ -1,5 +1,8 @@
 {
-  "name" : "myproject",
-  "version" : "0.1.0",
-  "dependencies" : [ "stb" ]
+  "name": "myproject",
+  "version": "0.1.0",
+  "dependencies": [
+    "stb",
+    "glm"
+  ]
 }

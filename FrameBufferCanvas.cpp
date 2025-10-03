@@ -7,7 +7,7 @@
 #include <cassert>
 #include <memory>
 
-#include "Glyph.h"
+#include "GlyphComponent.h"
 
 FrameBufferCanvas::FrameBufferCanvas(const unsigned int width,
                                      const unsigned int height) :
@@ -66,7 +66,7 @@ void FrameBufferCanvas::rect(const unsigned int centerX,
   assert(centerX + w/2 <= width_ && centerY + h/2 <= height_);
   for (unsigned int dy = 0; dy < h; ++dy) {
     for (unsigned int dx = 0; dx < w; ++dx) {
-      set(centerX + dx-w/2, centerY + dy-h/2, color);
+      set(centerX + dx - w / 2, centerY + dy - h / 2, color);
     }
   }
 }
@@ -75,22 +75,23 @@ void FrameBufferCanvas::renderGlyph(const unsigned int startX,
                                     const unsigned int startY,
                                     const Glyph& glyph,
                                     const RGB color) {
-  uint16_t contourStartPt = 0;
-  const auto n = glyph.getNumOfVertices();
-  const auto xCoordinates = glyph.getXCoordinates();
-  const auto yCoordinates = glyph.getYCoordinates();
-  const auto endPtsOfContours = glyph.getEndPtsOfContours();
+  for (const auto& c : glyph.getComponents()) {
+    uint16_t contourStartPt = 0;
+    const auto n = c.getNumOfVertices();
+    const auto coordinates = c.getCoordinates();
+    const auto endPtsOfContours = c.getEndPtsOfContours();
 
-  for (int i = 0; i < n; ++i) {
-    const auto isEndPt = endPtsOfContours.contains(i);
-    const auto targetIdx = isEndPt ? contourStartPt : (i + 1) % n;
-    const auto x = xCoordinates[i] + startX;
-    const auto y = yCoordinates[i] + startY;
-    const auto targetX = xCoordinates[targetIdx] + startX;
-    const auto targetY = yCoordinates[targetIdx] + startY;
-    line(x, y, targetX, targetY, 5, color);
-    rect(x, y, 20, 20, color);
-    if (isEndPt) contourStartPt = i + 1;
+    for (int i = 0; i < n; ++i) {
+      const auto isEndPt = endPtsOfContours.contains(i);
+      const auto targetIdx = isEndPt ? contourStartPt : (i + 1) % n;
+      const auto x = coordinates[i].x + startX;
+      const auto y = coordinates[i].y + startY;
+      const auto targetX = coordinates[targetIdx].x + startX;
+      const auto targetY = coordinates[targetIdx].y + startY;
+      line(x, y, targetX, targetY, 5, color);
+      rect(x, y, 20, 20, color);
+      if (isEndPt) contourStartPt = i + 1;
+    }
   }
 }
 

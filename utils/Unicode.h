@@ -53,15 +53,11 @@ inline std::vector<uint32_t> utf8ToCodepoints(const std::string& s) {
   std::vector<uint32_t> out;
   const char* p = s.c_str();
   const int len = static_cast<int>(s.size());
-  std::wcout << "len???: " << len << std::endl;
   int idx = 0;
   while (idx < len) {
     auto [cp, nbytes] = decodeUtf8Char(p + idx);
     out.push_back(cp);
     idx += nbytes;
-  }
-  for (const auto g : out) {
-    std::wcout << g << std::endl;
   }
 
   return out;
