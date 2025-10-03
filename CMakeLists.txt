@@ -16,7 +16,8 @@ add_executable(petite_truetype_renderer main.cpp
         FrameBufferCanvas.h
         FrameBufferCanvas.h
         utils/Geometry.h
-        utils/Debug.h)
+        utils/Debug.h
+        utils/Unicode.h)
 
 target_include_directories(petite_truetype_renderer PRIVATE ${Stb_INCLUDE_DIR})
 

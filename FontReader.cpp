@@ -7,8 +7,8 @@
 #include <iostream>
 
 #include "utils/Bit.h"
-#include "utils/Debug.h"
 #include "utils/Geometry.h"
+#include "utils/Unicode.h"
 
 FontReader::FontReader(const std::string& path) {
   ifs.open(path, std::ios::binary);
@@ -159,11 +159,12 @@ void FontReader::readCmapFormat12() {
   }
 }
 
-Glyph FontReader::getGlyph(const wchar_t unicode) {
-  goTo(getGlyphOffsetByUnicode(unicode));
+Glyph FontReader::getGlyph(const std::string& s) {
+  const auto unicode = utf8ToCodepoints(s);
+  goTo(getGlyphOffsetByUnicode(unicode[0]));
   // Read glyph description
   const auto numOfContours = readInt16(); // number of contours
-  // TODO
+  // TODO: support compound glyphs
   if (numOfContours < 0) {
     throw std::runtime_error(
         "FontReader: Currently ignoring compound glyphs");
@@ -226,9 +227,8 @@ uint32_t FontReader::getGlyphOffsetByUnicode(const wchar_t unicode) {
     const auto glyphCode = unicodeToGlyphCode[unicode];
     return glyphCodeToOffset[glyphCode];
   }
-
-  std::cout << "Not supported yet!" << std::endl;
-  return 0;
+  throw std::runtime_error(
+      "FontReader: Does not have such glyph");
 }
 
 std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
@@ -243,10 +243,14 @@ std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
 
     if (isShort) {
       const auto isPositive = Bit::isFlagSet(f, isX ? 4 : 5);
-      const auto offset = isPositive ? readUint8() : -1 * readUint8();
+      const auto offset = isPositive
+                            ? readUint8()
+                            : -1 * static_cast<int>(readUint8());
       pos += offset;
     } else {
-      if (!Bit::isFlagSet(f, isX ? 4 : 5)) pos += readInt16();
+      if (!Bit::isFlagSet(f, isX ? 4 : 5)) {
+        pos += readInt16();
+      };
     }
 
     coordinates[i] = pos;

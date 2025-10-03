@@ -42,17 +42,17 @@ BoundingRect Glyph::getBoundingRect() const {
 }
 
 void Glyph::printDebugInfo() const {
-  std::cout << "numOfVertices: " << numOfVertices << std::endl;
+  std::wcout << "numOfVertices: " << numOfVertices << std::endl;
 
-  std::cout << "endPtsOfContours: [";
+  std::wcout << "endPtsOfContours: [";
   for (auto c : endPtsOfContours) {
-    std::cout << c << ",";
+    std::wcout << c << ",";
   }
-  std::cout << "]" << std::endl;
+  std::wcout << "]" << std::endl;
 
   for (int i = 0; i < numOfVertices; ++i) {
-    std::cout << "points " << i << ": ";
-    std::cout << xCoordinates[i] << ", " << yCoordinates[i] << std::endl;
+    std::wcout << "points " << i << ": ";
+    std::wcout << xCoordinates[i] << ", " << yCoordinates[i] << std::endl;
   }
 }
 

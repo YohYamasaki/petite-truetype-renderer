@@ -36,7 +36,7 @@ public:
   uint32_t getGlyphOffsetByUnicode(wchar_t unicode);
   void loadUnicodeToGlyphCodeTable();
   void readCmapFormat12();
-  Glyph getGlyph(wchar_t unicode);
+  Glyph getGlyph(const std::string& s);
 
 private:
   std::ifstream ifs;
