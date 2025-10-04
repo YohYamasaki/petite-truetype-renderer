@@ -15,6 +15,7 @@ FrameBufferCanvas::FrameBufferCanvas(const unsigned width,
                                      const unsigned height) :
   width_(width), height_(height) {
   framebuffer = std::make_unique<RGB[]>(width * height);
+  shiftYVec = glm::vec2(0, height);
   for (int i = 0; i < width * height; ++i) framebuffer[i] = BLACK;
 }
 
@@ -26,11 +27,14 @@ unsigned FrameBufferCanvas::height() const {
   return height_;
 }
 
-void FrameBufferCanvas::set(const unsigned x,
-                            const unsigned y,
+void FrameBufferCanvas::set(const int x,
+                            const int y,
                             const RGB color) {
-  const unsigned i = width_ * y + x;
-  assert(x < width_ && y < height_);
+  if (x < 0 || y < 0) return;
+  if (static_cast<unsigned>(x) >= width_ || static_cast<unsigned>(y) >= height_)
+    return;
+  const std::size_t i = static_cast<std::size_t>(y) * static_cast<std::size_t>(
+                          width_) + static_cast<std::size_t>(x);
   framebuffer[i] = color;
 }
 
@@ -63,23 +67,40 @@ void FrameBufferCanvas::drawLine(const glm::vec2& start,
                                  const glm::vec2& end,
                                  const int thickness,
                                  const RGB color) {
-  drawLine(static_cast<int>(start.x),
-           static_cast<int>(start.y),
-           static_cast<int>(end.x),
-           static_cast<int>(end.y),
+  drawLine(static_cast<int>(std::lround(start.x)),
+           static_cast<int>(std::lround(start.y)),
+           static_cast<int>(std::lround(end.x)),
+           static_cast<int>(std::lround(end.y)),
            thickness, color);
 }
 
 
-void FrameBufferCanvas::drawRect(const unsigned centerX,
-                                 const unsigned centerY,
+void FrameBufferCanvas::drawRect(const int centerX,
+                                 const int centerY,
                                  const unsigned w,
                                  const unsigned h,
                                  const RGB color) {
-  assert(centerX + w/2 <= width_ && centerY + h/2 <= height_);
-  for (unsigned dy = 0; dy < h; ++dy) {
-    for (unsigned dx = 0; dx < w; ++dx) {
-      set(centerX + dx - w / 2, centerY + dy - h / 2, color);
+  // compute integer bounds
+  const int halfW = static_cast<int>(w) / 2;
+  const int halfH = static_cast<int>(h) / 2;
+  int left = centerX - halfW;
+  int top = centerY - halfH;
+  int right = left + static_cast<int>(w); // exclusive
+  int bottom = top + static_cast<int>(h); // exclusive
+
+  // clip to framebuffer
+  if (right <= 0 || bottom <= 0) return; // fully left or above
+  if (left >= static_cast<int>(width_) || top >= static_cast<int>(height_))
+    return; // fully right or below
+
+  left = std::max(left, 0);
+  top = std::max(top, 0);
+  right = std::min(right, static_cast<int>(width_));
+  bottom = std::min(bottom, static_cast<int>(height_));
+
+  for (int yy = top; yy < bottom; ++yy) {
+    for (int xx = left; xx < right; ++xx) {
+      set(xx, yy, color);
     }
   }
 }
@@ -88,11 +109,9 @@ void FrameBufferCanvas::drawRect(const glm::vec2& center,
                                  const unsigned w,
                                  const unsigned h,
                                  const RGB color) {
-  drawRect(static_cast<unsigned>(center.x),
-           static_cast<unsigned>(center.y),
-           w,
-           h,
-           color);
+  const int cx = static_cast<int>(std::lround(center.x));
+  const int cy = static_cast<int>(std::lround(center.y));
+  drawRect(cx, cy, w, h, color);
 }
 
 void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
@@ -111,8 +130,9 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
       const auto nextIdx = isEndPt ? contourStartPt : (i + 1) % n;
       const auto isOnCurve = ptsOnCurve.contains(i);
       const auto isNextOnCurve = ptsOnCurve.contains(nextIdx);
-      const auto currentPt = coordinates[i] + startPt;
-      auto nextPt = coordinates[nextIdx] + startPt;
+      // Convert coordinate system from bottom-up to top-down
+      auto currentPt = shiftYVec + flipYMat * (coordinates[i] + startPt);
+      auto nextPt = shiftYVec + flipYMat * (coordinates[nextIdx] + startPt);
 
       if (isOnCurve) {
         if (isNextOnCurve) {
@@ -139,7 +159,6 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
 
 void FrameBufferCanvas::writePngFile(const char* fileName) const {
   // TrueType uses bottom-to-top coordinate so we need to vertically flip the image
-  stbi_flip_vertically_on_write(1);
   stbi_write_png(fileName, static_cast<int>(width_),
                  static_cast<int>(height_),
                  3,

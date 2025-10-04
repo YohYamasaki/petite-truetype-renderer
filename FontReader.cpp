@@ -7,8 +7,9 @@
 #include <cmath>
 #include <iostream>
 #include <glm/glm.hpp>
+
+#include "FrameBufferCanvas.h"
 #include "utils/Bit.h"
-#include "utils/Debug.h"
 #include "utils/Geometry.h"
 #include "utils/Unicode.h"
 
@@ -195,6 +196,17 @@ Glyph FontReader::getGlyphByOffset(const uint32_t offset,
   return glyph;
 }
 
+
+uint32_t FontReader::getGlyphOffsetByUnicode(const wchar_t unicode) {
+  // Convert Unicode -> glyph code (glyph index) -> glyph offset
+  if (unicodeToGlyphCode.contains(unicode)) {
+    const auto glyphCode = unicodeToGlyphCode[unicode];
+    return glyphCodeToOffset[glyphCode];
+  }
+  throw std::runtime_error(
+      "FontReader: Does not have such glyph");
+}
+
 /**
  * Load simple glyph. Used from getCompoundGlyph to get component glyphs.
  *
@@ -262,6 +274,33 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
   return Glyph({component});
 }
 
+std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
+                                                  const std::vector<uint8_t>&
+                                                  flags,
+                                                  const bool isX) {
+  std::vector coordinates(n, 0);
+  for (int i = 0; i < n; ++i) {
+    const auto f = flags[i];
+    const auto isShort = Bit::isFlagSet(f, isX ? 1 : 2);
+    int pos = coordinates[i == 0 ? 0 : i - 1];
+
+    if (isShort) {
+      const auto isPositive = Bit::isFlagSet(f, isX ? 4 : 5);
+      const auto offset = isPositive
+                            ? readUint8()
+                            : -1 * static_cast<int>(readUint8());
+      pos += offset;
+    } else {
+      if (!Bit::isFlagSet(f, isX ? 4 : 5)) {
+        pos += readInt16();
+      };
+    }
+
+    coordinates[i] = pos;
+  }
+  return coordinates;
+}
+
 /**
  * Load compound glyph.
  * ARGS_ARE_XY_VALUES, ROUND_XY_TO_GRID, WE_HAVE_INSTRUCTIONS, OVERLAP_COMPOUND
@@ -288,25 +327,14 @@ Glyph FontReader::getCompoundGlyph() {
     const bool useMetrics = Bit::isFlagSet(flags, 9);
     const bool overlap = Bit::isFlagSet(flags, 10); // not implemented
 
-    PRINT_VAR(glyphCode);
-    PRINT_VAR(isXyValue);
-    PRINT_VAR(roundXyGrid);
-    PRINT_VAR(hasScale);
-    PRINT_VAR(hasXScale);
-    PRINT_VAR(hasTwoByTwo);
-    PRINT_VAR(hasInstruction);
-    PRINT_VAR(useMetrics);
-    PRINT_VAR(overlap);
-    std::wcout << std::endl;
-
     // read arguments (arg1,arg2) either words or bytes (signed)
     int32_t arg1 = 0, arg2 = 0;
     if (isWord) {
       arg1 = readInt16();
       arg2 = readInt16();
     } else {
-      arg1 = static_cast<int32_t>(static_cast<unsigned>(readInt8()));
-      arg2 = static_cast<int32_t>(static_cast<unsigned>(readInt8()));
+      arg1 = static_cast<int32_t>(static_cast<unsigned char>(readInt8()));
+      arg2 = static_cast<int32_t>(static_cast<unsigned char>(readInt8()));
     }
     // interpret arg1/arg2 later: XY values or point indices
     const int32_t e_raw = arg1;
@@ -364,41 +392,4 @@ Glyph FontReader::getCompoundGlyph() {
   } while (Bit::isFlagSet(flags, 5)); // MORE_COMPONENTS
 
   return Glyph(components, rect);
-}
-
-uint32_t FontReader::getGlyphOffsetByUnicode(const wchar_t unicode) {
-  // Convert Unicode -> glyph code (glyph index) -> glyph offset
-  if (unicodeToGlyphCode.contains(unicode)) {
-    const auto glyphCode = unicodeToGlyphCode[unicode];
-    return glyphCodeToOffset[glyphCode];
-  }
-  throw std::runtime_error(
-      "FontReader: Does not have such glyph");
-}
-
-std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
-                                                  const std::vector<uint8_t>&
-                                                  flags,
-                                                  const bool isX) {
-  std::vector coordinates(n, 0);
-  for (int i = 0; i < n; ++i) {
-    const auto f = flags[i];
-    const auto isShort = Bit::isFlagSet(f, isX ? 1 : 2);
-    int pos = coordinates[i == 0 ? 0 : i - 1];
-
-    if (isShort) {
-      const auto isPositive = Bit::isFlagSet(f, isX ? 4 : 5);
-      const auto offset = isPositive
-                            ? readUint8()
-                            : -1 * static_cast<int>(readUint8());
-      pos += offset;
-    } else {
-      if (!Bit::isFlagSet(f, isX ? 4 : 5)) {
-        pos += readInt16();
-      };
-    }
-
-    coordinates[i] = pos;
-  }
-  return coordinates;
 }
