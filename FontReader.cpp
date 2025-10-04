@@ -39,11 +39,11 @@ FontReader::FontReader(const std::string& path) {
   loadUnicodeToGlyphCodeTable();
 }
 
-void FontReader::skipBytes(const unsigned int bytes) {
+void FontReader::skipBytes(const unsigned bytes) {
   ifs.seekg(bytes, std::ios::cur);
 }
 
-void FontReader::goTo(const unsigned int targetByte) {
+void FontReader::goTo(const unsigned targetByte) {
   ifs.seekg(targetByte, std::ios::beg);
 }
 
@@ -86,7 +86,7 @@ float FontReader::readF2Dot14() {
 }
 
 std::string FontReader::readTag() {
-  constexpr unsigned int bytesLength = 4;
+  constexpr unsigned bytesLength = 4;
   char b[bytesLength + 1];
   ifs.read(b, bytesLength);
   b[bytesLength] = '\0';
@@ -214,14 +214,20 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
   // Skip instructions
   skipBytes(readUint16());
 
-  std::vector<uint8_t> flags(numOfVertices, 0);
+  std::vector<uint8_t> allFlags(numOfVertices, 0);
+  std::set<uint16_t> ptsOnCurve;
+
   uint16_t idx = 0;
   while (idx < numOfVertices) {
     const uint8_t f = readUint8();
-    flags[idx] = f;
+    allFlags[idx] = f;
+    if (Bit::isFlagSet(f, 0)) {
+      //ON_CURVE_POINT
+      ptsOnCurve.insert(idx);
+    }
 
     if (Bit::isFlagSet(f, 3)) {
-      // repeat flag
+      // REPEAT_FLAG
       const uint8_t repeat = readUint8(); // number of repetitions
       // check bounds: idx + repeat must be < numOfVertices
       if (static_cast<uint32_t>(idx) + static_cast<uint32_t>(repeat) >=
@@ -230,7 +236,7 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
             "FontReader: flags repeat runs past number of vertices");
       }
       // fill repeats
-      for (uint16_t r = 1; r <= repeat; ++r) flags[idx + r] = f;
+      for (uint16_t r = 1; r <= repeat; ++r) allFlags[idx + r] = f;
       idx += static_cast<uint16_t>(repeat) + 1;
     } else {
       ++idx;
@@ -238,9 +244,9 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
   }
 
   const std::vector<int> xCoordinates = readGlyphCoordinates(
-      numOfVertices, flags, true);
+      numOfVertices, allFlags, true);
   const std::vector<int> yCoordinates = readGlyphCoordinates(
-      numOfVertices, flags, false);
+      numOfVertices, allFlags, false);
   std::vector<glm::vec2> coordinates;
   for (int i = 0; i < numOfVertices; ++i) {
     const auto coord = affineMat * glm::vec3(xCoordinates[i], yCoordinates[i],
@@ -248,7 +254,10 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
     coordinates.emplace_back(coord.x, coord.y);
   }
 
-  GlyphComponent component{numOfVertices, endPtsOfContours, boundingRect,
+  GlyphComponent component{numOfVertices,
+                           endPtsOfContours,
+                           ptsOnCurve,
+                           boundingRect,
                            coordinates};
   return Glyph({component});
 }

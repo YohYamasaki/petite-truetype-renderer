@@ -6,35 +6,37 @@
 #include <stb_image_write.h>
 #include <cassert>
 #include <memory>
+#include <glm/geometric.hpp>
 
 #include "GlyphComponent.h"
 
-FrameBufferCanvas::FrameBufferCanvas(const unsigned int width,
-                                     const unsigned int height) :
+
+FrameBufferCanvas::FrameBufferCanvas(const unsigned width,
+                                     const unsigned height) :
   width_(width), height_(height) {
   framebuffer = std::make_unique<RGB[]>(width * height);
-  for (int i = 0; i < width * height; ++i) framebuffer[i] = RGB{0};
+  for (int i = 0; i < width * height; ++i) framebuffer[i] = BLACK;
 }
 
-unsigned int FrameBufferCanvas::width() const {
+unsigned FrameBufferCanvas::width() const {
   return width_;
 }
 
-unsigned int FrameBufferCanvas::height() const {
+unsigned FrameBufferCanvas::height() const {
   return height_;
 }
 
-void FrameBufferCanvas::set(const unsigned int x,
-                            const unsigned int y,
+void FrameBufferCanvas::set(const unsigned x,
+                            const unsigned y,
                             const RGB color) {
-  const unsigned int i = width_ * y + x;
+  const unsigned i = width_ * y + x;
   assert(x < width_ && y < height_);
   framebuffer[i] = color;
 }
 
-void FrameBufferCanvas::line(int ax, int ay, int bx, int by,
-                             const int thickness,
-                             const RGB color) {
+void FrameBufferCanvas::drawLine(int ax, int ay, int bx, int by,
+                                 const int thickness,
+                                 const RGB color) {
   const int w = std::abs(ax - bx);
   const int h = std::abs(ay - by);
   const bool isSteep = w < h;
@@ -49,30 +51,51 @@ void FrameBufferCanvas::line(int ax, int ay, int bx, int by,
   auto y = static_cast<float>(ay);
   for (int x = ax; x <= bx; ++x) {
     if (isSteep) {
-      rect(static_cast<int>(y), x, thickness, thickness, color);
+      drawRect(static_cast<int>(y), x, thickness, thickness, color);
     } else {
-      rect(x, static_cast<int>(y), thickness, thickness, color);
+      drawRect(x, static_cast<int>(y), thickness, thickness, color);
     }
     y += static_cast<float>(by - ay) / static_cast<float>(bx - ax);
   }
 }
 
+void FrameBufferCanvas::drawLine(const glm::vec2& start,
+                                 const glm::vec2& end,
+                                 const int thickness,
+                                 const RGB color) {
+  drawLine(static_cast<int>(start.x),
+           static_cast<int>(start.y),
+           static_cast<int>(end.x),
+           static_cast<int>(end.y),
+           thickness, color);
+}
 
-void FrameBufferCanvas::rect(const unsigned int centerX,
-                             const unsigned int centerY,
-                             const unsigned int w,
-                             const unsigned int h,
-                             const RGB color) {
+
+void FrameBufferCanvas::drawRect(const unsigned centerX,
+                                 const unsigned centerY,
+                                 const unsigned w,
+                                 const unsigned h,
+                                 const RGB color) {
   assert(centerX + w/2 <= width_ && centerY + h/2 <= height_);
-  for (unsigned int dy = 0; dy < h; ++dy) {
-    for (unsigned int dx = 0; dx < w; ++dx) {
+  for (unsigned dy = 0; dy < h; ++dy) {
+    for (unsigned dx = 0; dx < w; ++dx) {
       set(centerX + dx - w / 2, centerY + dy - h / 2, color);
     }
   }
 }
 
-void FrameBufferCanvas::renderGlyph(const unsigned int startX,
-                                    const unsigned int startY,
+void FrameBufferCanvas::drawRect(const glm::vec2& center,
+                                 const unsigned w,
+                                 const unsigned h,
+                                 const RGB color) {
+  drawRect(static_cast<unsigned>(center.x),
+           static_cast<unsigned>(center.y),
+           w,
+           h,
+           color);
+}
+
+void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
                                     const Glyph& glyph,
                                     const RGB color) {
   for (const auto& c : glyph.getComponents()) {
@@ -80,16 +103,35 @@ void FrameBufferCanvas::renderGlyph(const unsigned int startX,
     const auto n = c.getNumOfVertices();
     const auto coordinates = c.getCoordinates();
     const auto endPtsOfContours = c.getEndPtsOfContours();
+    const auto ptsOnCurve = c.getPtsOnCurve();
 
+    glm::vec2 prevPt = startPt;
     for (int i = 0; i < n; ++i) {
       const auto isEndPt = endPtsOfContours.contains(i);
-      const auto targetIdx = isEndPt ? contourStartPt : (i + 1) % n;
-      const auto x = coordinates[i].x + startX;
-      const auto y = coordinates[i].y + startY;
-      const auto targetX = coordinates[targetIdx].x + startX;
-      const auto targetY = coordinates[targetIdx].y + startY;
-      line(x, y, targetX, targetY, 5, color);
-      rect(x, y, 20, 20, color);
+      const auto nextIdx = isEndPt ? contourStartPt : (i + 1) % n;
+      const auto isOnCurve = ptsOnCurve.contains(i);
+      const auto isNextOnCurve = ptsOnCurve.contains(nextIdx);
+      const auto currentPt = coordinates[i] + startPt;
+      auto nextPt = coordinates[nextIdx] + startPt;
+
+      if (isOnCurve) {
+        if (isNextOnCurve) {
+          drawLine(currentPt, nextPt, 5, color);
+        }
+        prevPt = currentPt;
+      } else {
+        // Control point
+        if (!isNextOnCurve) {
+          // Calculate the implicit next "on-curve" from the middle point of next control point
+          nextPt = (currentPt + nextPt);
+          nextPt /= 2;
+        }
+        drawBezier(prevPt, currentPt, nextPt, 5, color);
+        // Draw implicit next on-curve point
+        drawRect(nextPt, 20, 20, BLUE);
+        prevPt = nextPt;
+      }
+      drawRect(currentPt, 20, 20, isOnCurve ? WHITE : GREEN);
       if (isEndPt) contourStartPt = i + 1;
     }
   }
@@ -102,5 +144,23 @@ void FrameBufferCanvas::writePngFile(const char* fileName) const {
                  static_cast<int>(height_),
                  3,
                  framebuffer.get(), 0);
+}
+
+void FrameBufferCanvas::drawBezier(const glm::vec2& startPt,
+                                   const glm::vec2& controlPt,
+                                   const glm::vec2& endPt,
+                                   const int thickness,
+                                   const RGB color) {
+  // approximate curve length
+  const float approxLen = glm::length(controlPt - startPt) + glm::length(
+                              endPt - controlPt);
+  const int res = std::max(1, static_cast<int>(std::ceil(approxLen)));
+  glm::vec2 last = startPt;
+  for (int i = 1; i <= res; ++i) {
+    const float t = static_cast<float>(i) / static_cast<float>(res);
+    glm::vec2 cur = bezierLerp(startPt, controlPt, endPt, t);
+    drawLine(last, cur, thickness, color);
+    last = cur;
+  }
 }
 

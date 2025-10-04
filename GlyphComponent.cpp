@@ -9,14 +9,16 @@
 #include <utility>
 #include <vector>
 
-GlyphComponent::GlyphComponent(uint16_t numOfVertices,
-                               std::set<uint16_t> endPtsOfContours,
-                               BoundingRect boundingRect,
-                               std::vector<glm::vec2> coordinates)
-  : numOfVertices(numOfVertices),
-    endPtsOfContours(std::move(endPtsOfContours)),
-    boundingRect(boundingRect),
-    coordinates(std::move(coordinates)) {
+GlyphComponent::GlyphComponent(uint16_t numOfVertices_,
+                               std::set<uint16_t> endPtsOfContours_,
+                               std::set<uint16_t> ptsOnCurve_,
+                               BoundingRect boundingRect_,
+                               std::vector<glm::vec2> coordinates_)
+  : numOfVertices(numOfVertices_),
+    endPtsOfContours(std::move(endPtsOfContours_)),
+    boundingRect(boundingRect_),
+    coordinates(std::move(coordinates_)),
+    ptsOnCurve(std::move(ptsOnCurve_)) {
 }
 
 uint16_t GlyphComponent::getNumOfVertices() const {
@@ -25,6 +27,10 @@ uint16_t GlyphComponent::getNumOfVertices() const {
 
 std::set<uint16_t> GlyphComponent::getEndPtsOfContours() const {
   return endPtsOfContours;
+}
+
+std::set<uint16_t> GlyphComponent::getPtsOnCurve() const {
+  return ptsOnCurve;
 }
 
 
