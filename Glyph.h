@@ -2,6 +2,7 @@
 // Created by yoh on 03/10/25.
 //
 
+#pragma once
 #ifndef GLYPH_H
 #define GLYPH_H
 #include "GlyphComponent.h"

@@ -2,6 +2,7 @@
 // Created by yoh on 28/09/25.
 //
 
+#pragma once
 #ifndef UTILS_H
 #define UTILS_H
 

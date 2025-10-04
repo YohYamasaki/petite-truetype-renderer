@@ -2,6 +2,7 @@
 // Created by yoh on 03/10/25.
 //
 
+#pragma once
 #ifndef UNICODE_H
 #define UNICODE_H
 #include <cstdint>

@@ -2,6 +2,7 @@
 // Created by yoh on 28/09/25.
 //
 
+#pragma once
 #ifndef FONTREADER_H
 #define FONTREADER_H
 #include <fstream>
@@ -31,8 +32,8 @@ private:
   std::map<uint32_t, uint32_t> glyphCodeToOffset;
 
   // stream helper methods
-  void skipBytes(unsigned int bytes);
-  void goTo(unsigned int targetByte);
+  void skipBytes(unsigned bytes);
+  void goTo(unsigned targetByte);
   uint8_t readUint8();
   uint16_t readUint16();
   uint32_t readUint32();
