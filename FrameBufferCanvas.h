@@ -40,15 +40,13 @@ constexpr auto flipYMat = glm::mat2(1, 0, 0, -1);
 
 class FrameBufferCanvas {
 public:
-  explicit FrameBufferCanvas(unsigned width = WIDTH, unsigned height = HEIGHT);
-  [[nodiscard]] unsigned width() const;
-  [[nodiscard]] unsigned height() const;
+  explicit FrameBufferCanvas(int width_ = WIDTH, int height_ = HEIGHT);
   void set(int x, int y, RGB color);
   void drawLine(
       int ax, int ay, int bx, int by, int thickness, RGB color);
   void drawLine(const glm::vec2& start, const glm::vec2& end, int thickness,
                 RGB color);
-  void drawRect(int centerX, int centerY, unsigned w, unsigned h,
+  void drawRect(int centerX, int centerY, int rectWidth, int rectHeight,
                 RGB color);
   void drawRect(const glm::vec2& center, unsigned w, unsigned h, RGB color);
   void drawBezier(const glm::vec2& startPt,
@@ -57,14 +55,18 @@ public:
                   int thickness,
                   RGB color);
 
+  void renderGlyphOutline(
+      const glm::vec2& startPt,
+      const Glyph& glyph, RGB color);
   void renderGlyph(
       const glm::vec2& startPt,
       const Glyph& glyph, RGB color);
+  void fillGlyphByEvenodd(const Glyph& glyph);
   void writePngFile(const char* fileName) const;
 
 private:
-  unsigned width_;
-  unsigned height_;
+  int width;
+  int height;
   std::unique_ptr<RGB[]> framebuffer;
   glm::vec2 shiftYVec{};
 };

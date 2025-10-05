@@ -11,30 +11,21 @@
 #include "GlyphComponent.h"
 
 
-FrameBufferCanvas::FrameBufferCanvas(const unsigned width,
-                                     const unsigned height) :
-  width_(width), height_(height) {
+FrameBufferCanvas::FrameBufferCanvas(const int width_,
+                                     const int height_) :
+  width(width_), height(height_) {
   framebuffer = std::make_unique<RGB[]>(width * height);
   shiftYVec = glm::vec2(0, height);
   for (int i = 0; i < width * height; ++i) framebuffer[i] = BLACK;
-}
-
-unsigned FrameBufferCanvas::width() const {
-  return width_;
-}
-
-unsigned FrameBufferCanvas::height() const {
-  return height_;
 }
 
 void FrameBufferCanvas::set(const int x,
                             const int y,
                             const RGB color) {
   if (x < 0 || y < 0) return;
-  if (static_cast<unsigned>(x) >= width_ || static_cast<unsigned>(y) >= height_)
-    return;
+  if (x >= width || y >= height) return;
   const std::size_t i = static_cast<std::size_t>(y) * static_cast<std::size_t>(
-                          width_) + static_cast<std::size_t>(x);
+                          width) + static_cast<std::size_t>(x);
   framebuffer[i] = color;
 }
 
@@ -77,26 +68,26 @@ void FrameBufferCanvas::drawLine(const glm::vec2& start,
 
 void FrameBufferCanvas::drawRect(const int centerX,
                                  const int centerY,
-                                 const unsigned w,
-                                 const unsigned h,
+                                 const int rectWidth,
+                                 const int rectHeight,
                                  const RGB color) {
   // compute integer bounds
-  const int halfW = static_cast<int>(w) / 2;
-  const int halfH = static_cast<int>(h) / 2;
+  const int halfW = rectWidth / 2;
+  const int halfH = rectHeight / 2;
   int left = centerX - halfW;
   int top = centerY - halfH;
-  int right = left + static_cast<int>(w); // exclusive
-  int bottom = top + static_cast<int>(h); // exclusive
+  int right = left + rectWidth; // exclusive
+  int bottom = top + rectHeight; // exclusive
 
   // clip to framebuffer
   if (right <= 0 || bottom <= 0) return; // fully left or above
-  if (left >= static_cast<int>(width_) || top >= static_cast<int>(height_))
+  if (left >= width || top >= height)
     return; // fully right or below
 
   left = std::max(left, 0);
   top = std::max(top, 0);
-  right = std::min(right, static_cast<int>(width_));
-  bottom = std::min(bottom, static_cast<int>(height_));
+  right = std::min(right, width);
+  bottom = std::min(bottom, height);
 
   for (int yy = top; yy < bottom; ++yy) {
     for (int xx = left; xx < right; ++xx) {
@@ -114,9 +105,9 @@ void FrameBufferCanvas::drawRect(const glm::vec2& center,
   drawRect(cx, cy, w, h, color);
 }
 
-void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
-                                    const Glyph& glyph,
-                                    const RGB color) {
+void FrameBufferCanvas::renderGlyphOutline(const glm::vec2& startPt,
+                                           const Glyph& glyph,
+                                           const RGB color) {
   for (const auto& c : glyph.getComponents()) {
     uint16_t contourStartPt = 0;
     const auto n = c.getNumOfVertices();
@@ -157,11 +148,73 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
   }
 }
 
+void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
+                                    const Glyph& glyph,
+                                    const RGB color) {
+  for (const auto& c : glyph.getComponents()) {
+    uint16_t contourStartPt = 0;
+    const auto n = c.getNumOfVertices();
+    const auto coordinates = c.getCoordinates();
+    const auto endPtsOfContours = c.getEndPtsOfContours();
+    const auto ptsOnCurve = c.getPtsOnCurve();
+
+    for (int y = 0; y < height; ++y) {
+      const auto rayStart = glm::vec2(0, y);
+      const auto rayEnd = glm::vec2(width, y);
+      int intersectCount = 0;
+
+      glm::vec2 prevPt = startPt;
+      for (int i = 0; i < n; ++i) {
+        const auto isEndPt = endPtsOfContours.contains(i);
+        const auto nextIdx = isEndPt ? contourStartPt : (i + 1) % n;
+        const auto isOnCurve = ptsOnCurve.contains(i);
+        const auto isNextOnCurve = ptsOnCurve.contains(nextIdx);
+        // Convert coordinate system from bottom-up to top-down
+        auto currentPt = shiftYVec + flipYMat * (coordinates[i] + startPt);
+        auto nextPt = shiftYVec + flipYMat * (coordinates[nextIdx] + startPt);
+
+        if (isOnCurve) {
+          if (isNextOnCurve) {
+            // Straight line
+            if (segmentsIntersect(currentPt, nextPt, rayStart, rayEnd)) {
+              intersectCount++;
+            }
+          }
+          prevPt = currentPt;
+        } else {
+          // Control point
+          if (!isNextOnCurve) {
+            // Calculate the implicit next "on-curve" from the middle point of next control point
+            nextPt = (currentPt + nextPt);
+            nextPt /= 2;
+          }
+          // bezier line
+          const auto intersections = segmentQuadBezierIntersect(
+              prevPt,
+              currentPt,
+              nextPt,
+              rayStart,
+              rayEnd
+              );
+          intersectCount += intersections.size();
+
+          prevPt = nextPt;
+        }
+        if (isEndPt) contourStartPt = i + 1;
+      }
+      if (intersectCount % 2 == 1) {
+      }
+    }
+  }
+}
+
+void FrameBufferCanvas::fillGlyphByEvenodd(const Glyph& glyph) {
+  // Check from left to right to count the intersection
+}
+
 void FrameBufferCanvas::writePngFile(const char* fileName) const {
   // TrueType uses bottom-to-top coordinate so we need to vertically flip the image
-  stbi_write_png(fileName, static_cast<int>(width_),
-                 static_cast<int>(height_),
-                 3,
+  stbi_write_png(fileName, width, height, 3,
                  framebuffer.get(), 0);
 }
 

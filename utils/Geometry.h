@@ -38,8 +38,9 @@ quadBezierLerp(const glm::vec2& a, const glm::vec2& b, const glm::vec2& c,
   return lerp(lerp(a, b, t), lerp(b, c, t), t);
 }
 
-inline bool segmentsIntersect(const glm::vec2& a1, const glm::vec2& a2,
-                              const glm::vec2& b1, const glm::vec2& b2) {
+inline std::optional<glm::vec2> segmentsIntersect(
+    const glm::vec2& a1, const glm::vec2& a2,
+    const glm::vec2& b1, const glm::vec2& b2) {
   //  >0: c is above of start-end line, <0: below, ==0: collinear
   const auto region = [](const glm::vec2& pt, const glm::vec2& start,
                          const glm::vec2& end) {
@@ -48,7 +49,24 @@ inline bool segmentsIntersect(const glm::vec2& a1, const glm::vec2& a2,
   };
   const auto ra = region(b1, a1, a2) * region(b2, a1, a2) < 0;
   const auto rb = region(a1, b1, b2) * region(a2, b1, b2) < 0;
-  return ra && rb;
+
+  if (ra && rb) {
+    const glm::vec2 v1 = a2 - a1;
+    const glm::vec2 v2 = b2 - b1;
+
+    // 2D scalar cross product
+    auto cross = [](const glm::vec2& u, const glm::vec2& v) {
+      return u.x * v.y - u.y * v.x;
+    };
+
+    const auto denom = cross(v1, v2);
+    constexpr auto eps = 1e-8f;
+    if (std::fabs(denom) < eps) return std::nullopt; // parallel / numeric guard
+
+    const auto t = cross(b1 - a1, v2) / denom;
+    return a1 + t * v1;
+  }
+  return std::nullopt;
 }
 
 inline std::vector<float> solveQuadratic(const float a, const float b,
