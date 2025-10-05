@@ -177,7 +177,7 @@ void FrameBufferCanvas::drawBezier(const glm::vec2& startPt,
   glm::vec2 last = startPt;
   for (int i = 1; i <= res; ++i) {
     const float t = static_cast<float>(i) / static_cast<float>(res);
-    glm::vec2 cur = bezierLerp(startPt, controlPt, endPt, t);
+    glm::vec2 cur = quadBezierLerp(startPt, controlPt, endPt, t);
     drawLine(last, cur, thickness, color);
     last = cur;
   }
