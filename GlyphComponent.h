@@ -24,10 +24,10 @@ public:
                           BoundingRect boundingRect_,
                           std::vector<glm::vec2> coordinates_);
   [[nodiscard]] uint16_t getNumOfVertices() const;
-  [[nodiscard]] std::set<uint16_t> getEndPtsOfContours() const;
-  [[nodiscard]] std::set<uint16_t> getPtsOnCurve() const;
   [[nodiscard]] BoundingRect getBoundingRect() const;
-  [[nodiscard]] std::vector<glm::vec2> getCoordinates() const;
+  [[nodiscard]] const std::set<uint16_t>& getEndPtsOfContours() const;
+  [[nodiscard]] const std::set<uint16_t>& getPtsOnCurve() const;
+  [[nodiscard]] const std::vector<glm::vec2>& getCoordinates() const;
   void printDebugInfo() const;
 
 private:

@@ -25,21 +25,22 @@ uint16_t GlyphComponent::getNumOfVertices() const {
   return numOfVertices;
 }
 
-std::set<uint16_t> GlyphComponent::getEndPtsOfContours() const {
+const std::set<uint16_t>& GlyphComponent::getEndPtsOfContours() const {
   return endPtsOfContours;
 }
 
-std::set<uint16_t> GlyphComponent::getPtsOnCurve() const {
+const std::set<uint16_t>& GlyphComponent::getPtsOnCurve() const {
   return ptsOnCurve;
+}
+
+
+const std::vector<glm::vec2>& GlyphComponent::getCoordinates() const {
+  return coordinates;
 }
 
 
 BoundingRect GlyphComponent::getBoundingRect() const {
   return boundingRect;
-}
-
-std::vector<glm::vec2> GlyphComponent::getCoordinates() const {
-  return coordinates;
 }
 
 void GlyphComponent::printDebugInfo() const {

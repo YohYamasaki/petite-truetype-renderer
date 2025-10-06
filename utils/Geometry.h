@@ -6,11 +6,11 @@
 #ifndef GEOMETORY_H
 #define GEOMETORY_H
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <optional>
 
-#include "Debug.h"
 #include "glm/glm.hpp"
 
 struct BoundingRect {
@@ -19,6 +19,8 @@ struct BoundingRect {
   int yMin = 0;
   int yMax = 0;
 };
+
+constexpr auto eps = 1e-8f;
 
 inline std::ostream& operator<<(std::ostream& out, const BoundingRect& b) {
   out << b.xMin << ":" << b.xMax << ":" << b.yMin << ":" << b.yMax <<
@@ -66,14 +68,14 @@ quadBezierLerp(const glm::vec2& start, const glm::vec2& control,
 inline std::optional<glm::vec2> segmentsIntersect(
     const glm::vec2& a1, const glm::vec2& a2,
     const glm::vec2& b1, const glm::vec2& b2) {
-  //  >0: c is above of start-end line, <0: below, ==0: collinear
+  //  >0: c is above of start-end line, <0: below, ==0: on the line
   const auto region = [](const glm::vec2& pt, const glm::vec2& start,
                          const glm::vec2& end) {
     return (end.y - start.y) * (pt.x - start.x) - (end.x - start.x) * (
              pt.y - start.y);
   };
-  const auto ra = region(b1, a1, a2) * region(b2, a1, a2) < 0;
-  const auto rb = region(a1, b1, b2) * region(a2, b1, b2) < 0;
+  const auto ra = region(b1, a1, a2) * region(b2, a1, a2) <= 0;
+  const auto rb = region(a1, b1, b2) * region(a2, b1, b2) <= 0;
 
   if (ra && rb) {
     const glm::vec2 v1 = a2 - a1;
@@ -85,8 +87,8 @@ inline std::optional<glm::vec2> segmentsIntersect(
     };
 
     const auto denom = cross(v1, v2);
-    constexpr auto eps = 1e-8f;
-    if (std::fabs(denom) < eps) return std::nullopt; // parallel / numeric guard
+    if (std::fabs(denom) < eps) return std::nullopt;
+    // parallel / numeric guard
 
     const auto t = cross(b1 - a1, v2) / denom;
     return a1 + t * v1;
@@ -104,7 +106,6 @@ inline std::optional<glm::vec2> segmentsIntersect(
  */
 inline std::vector<float> solveQuadratic(const float a, const float b,
                                          const float c) {
-  constexpr float eps = 1e-8f;
   std::vector<float> roots;
   if (std::fabs(a) < eps) {
     // linear
@@ -114,17 +115,17 @@ inline std::vector<float> solveQuadratic(const float a, const float b,
   }
   const float D = b * b - 4.0f * a * c;
   if (D < -eps) return roots; // no real roots
-  if (D < 0.0f) {
+  if (D < eps) {
     // near zero
     roots.push_back(-b / (2.0f * a));
     return roots;
   }
   const float sqrtD = std::sqrt(D);
-  const float q = -0.5f * (b + (b >= 0.0f ? sqrtD : -sqrtD));
+  const float q = -0.5f * (b + (b >= eps ? sqrtD : -sqrtD));
   const float r1 = q / a;
   const float r2 = c / q;
   roots.push_back(r1);
-  if (std::fabs(r2 - r1) > 1e-7f) roots.push_back(r2);
+  if (std::fabs(r2 - r1) > eps) roots.push_back(r2);
   return roots;
 }
 
@@ -158,9 +159,32 @@ inline std::vector<glm::vec2> segmentQuadBezierIntersect(
 
   std::vector<glm::vec2> intersects(0);
   for (const auto t : ts) {
-    if (t >= 0 && t < 1) intersects.push_back(a * t * t + b * t + c);
+    if (-eps <= t && t <= 1.0f + eps)
+      intersects.push_back(
+          a * t * t + b * t + c);
   }
   return intersects;
+}
+
+inline int getBezierMinY(
+    const glm::vec2& p1, // bezier start
+    const glm::vec2& p2, // bezier control
+    const glm::vec2& p3 // bezier end
+    ) {
+  const auto a = p1.y - 2 * p2.y + p3.y;
+  const auto b = 2 * (p2.y - p1.y);
+
+  if (fabs(a) < eps) {
+    if (fabs(b) < eps) return static_cast<int>(p1.y);
+    return static_cast<int>(std::min(p1.y, p3.y));
+  }
+  // find the parameter when the curve reaches its extremum by taking the derivative
+  const auto t = -b / (2.0f * a);
+  // if the curve is convex upwards, the extremum can be the maximum y
+  if (-eps <= t && t <= 1.0f + eps && a > 0) {
+    return static_cast<int>(a * t * t + b * t + p1.y);
+  }
+  return static_cast<int>(std::min(p1.y, p3.y));
 }
 
 #endif //GEOMETORY_H

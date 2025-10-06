@@ -4,11 +4,13 @@
 
 #include "FrameBufferCanvas.h"
 #include <stb_image_write.h>
-#include <cassert>
+
+#include <algorithm>
 #include <memory>
-#include <glm/geometric.hpp>
+#include <glm/glm.hpp>
 
 #include "GlyphComponent.h"
+#include "utils/Debug.h"
 
 
 FrameBufferCanvas::FrameBufferCanvas(const int width_,
@@ -152,7 +154,6 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
                                     const Glyph& glyph,
                                     const RGB color) {
   for (const auto& c : glyph.getComponents()) {
-    uint16_t contourStartPt = 0;
     const auto n = c.getNumOfVertices();
     const auto coordinates = c.getCoordinates();
     const auto endPtsOfContours = c.getEndPtsOfContours();
@@ -161,8 +162,9 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
     for (int y = 0; y < height; ++y) {
       const auto rayStart = glm::vec2(0, y);
       const auto rayEnd = glm::vec2(width, y);
-      int intersectCount = 0;
+      std::vector<int> intersections;
 
+      uint16_t contourStartPt = 0;
       glm::vec2 prevPt = startPt;
       for (int i = 0; i < n; ++i) {
         const auto isEndPt = endPtsOfContours.contains(i);
@@ -176,8 +178,11 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
         if (isOnCurve) {
           if (isNextOnCurve) {
             // Straight line
-            if (segmentsIntersect(currentPt, nextPt, rayStart, rayEnd)) {
-              intersectCount++;
+            const auto s = segmentsIntersect(
+                currentPt, nextPt, rayStart, rayEnd);
+            const auto minY = static_cast<int>(std::min(currentPt.y, nextPt.y));
+            if (s && minY < y) {
+              intersections.emplace_back(static_cast<int>(s.value().x));
             }
           }
           prevPt = currentPt;
@@ -189,27 +194,38 @@ void FrameBufferCanvas::renderGlyph(const glm::vec2& startPt,
             nextPt /= 2;
           }
           // bezier line
-          const auto intersections = segmentQuadBezierIntersect(
+          const auto ss = segmentQuadBezierIntersect(
               prevPt,
               currentPt,
               nextPt,
               rayStart,
               rayEnd
               );
-          intersectCount += intersections.size();
 
+          const auto minY = getBezierMinY(prevPt, currentPt, nextPt);
+          if (minY < y) {
+            for (const auto s : ss) {
+              intersections.emplace_back(static_cast<int>(s.x));
+            }
+          }
           prevPt = nextPt;
         }
         if (isEndPt) contourStartPt = i + 1;
       }
-      if (intersectCount % 2 == 1) {
+
+      std::sort(intersections.begin(), intersections.end());
+
+      int cnt = 0;
+      int prevX = 0;
+      for (const auto x : intersections) {
+        if (cnt % 2 == 1) {
+          drawLine(prevX, y, x, y, 1, color);
+        }
+        cnt++;
+        prevX = x;
       }
     }
   }
-}
-
-void FrameBufferCanvas::fillGlyphByEvenodd(const Glyph& glyph) {
-  // Check from left to right to count the intersection
 }
 
 void FrameBufferCanvas::writePngFile(const char* fileName) const {
@@ -227,6 +243,7 @@ void FrameBufferCanvas::drawBezier(const glm::vec2& startPt,
   const float approxLen = glm::length(controlPt - startPt) + glm::length(
                               endPt - controlPt);
   const int res = std::max(1, static_cast<int>(std::ceil(approxLen)));
+
   glm::vec2 last = startPt;
   for (int i = 1; i <= res; ++i) {
     const float t = static_cast<float>(i) / static_cast<float>(res);
