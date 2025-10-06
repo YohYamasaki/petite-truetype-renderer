@@ -26,18 +26,43 @@ inline std::ostream& operator<<(std::ostream& out, const BoundingRect& b) {
   return out;
 }
 
+/**
+ * Linear interoperation for two points.
+ * @param a Start point
+ * @param b End point
+ * @param t Time parameter
+ * @return Current point
+ */
 inline glm::vec2 lerp(const glm::vec2& a, const glm::vec2& b, const float t) {
   assert(t >= 0 && t <= 1);
   return a + (b - a) * t;
 }
 
+/**
+ * Interoperation for quadratic Bézier curve.
+ *
+ * @param start Start point(on the curve)
+ * @param control Control point (off the curve)
+ * @param end End point (on the curce)
+ * @param t Time parameter
+ * @return Current point
+ */
 inline glm::vec2
-quadBezierLerp(const glm::vec2& a, const glm::vec2& b, const glm::vec2& c,
+quadBezierLerp(const glm::vec2& start, const glm::vec2& control,
+               const glm::vec2& end,
                const float t) {
   assert(t >= 0 && t <= 1);
-  return lerp(lerp(a, b, t), lerp(b, c, t), t);
+  return lerp(lerp(start, control, t), lerp(control, end, t), t);
 }
 
+/**
+ * Detect intersection point of the given two segments.
+ * @param a1 Start point for segment 1
+ * @param a2 End point for segment 1
+ * @param b1 Start point for segment 2
+ * @param b2 End point for segment 2
+ * @return Intersection point as a vector or nullopt
+ */
 inline std::optional<glm::vec2> segmentsIntersect(
     const glm::vec2& a1, const glm::vec2& a2,
     const glm::vec2& b1, const glm::vec2& b2) {
@@ -69,6 +94,14 @@ inline std::optional<glm::vec2> segmentsIntersect(
   return std::nullopt;
 }
 
+/**
+ * Solves the quadratic equation ax^2 + bx + c = 0.
+ *
+ * @param a Coefficient for x^2
+ * @param b Coefficient for x
+ * @param c Constant term
+ * @return  Vector of the real roots, empty if no solution are found
+ */
 inline std::vector<float> solveQuadratic(const float a, const float b,
                                          const float c) {
   constexpr float eps = 1e-8f;
@@ -95,6 +128,16 @@ inline std::vector<float> solveQuadratic(const float a, const float b,
   return roots;
 }
 
+/**
+ * Detect intersection point of a given segment and quadratic Bézier curve.
+ *
+ * @param p1 Start point of a curve
+ * @param p2 Control point of a curve
+ * @param p3 End point of a curve
+ * @param l1 Start point of a line
+ * @param l2 End point of a line
+ * @return Vector of the intersections, empty if nothing found.
+ */
 inline std::vector<glm::vec2> segmentQuadBezierIntersect(
     const glm::vec2& p1, // bezier start
     const glm::vec2& p2, // bezier control
