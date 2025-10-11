@@ -1,7 +1,3 @@
-//
-// Created by yoh on 28/09/25.
-//
-
 #include "FontReader.h"
 
 #include <cmath>
@@ -19,7 +15,7 @@ FontReader::FontReader(const std::string& path) {
     std::cerr << "failed to open file\n";
   }
 
-  // read HEAD table
+  // read header
   skipBytes(sizeof(uint32_t)); // skip sfntVersion
   const uint16_t numTables = readUint16();
   // skip searchRange, entrySelector, rangeShift
@@ -27,7 +23,11 @@ FontReader::FontReader(const std::string& path) {
 
   // read directory table
   for (int i = 0; i < numTables; ++i) {
-    const auto tag = readTag();
+    constexpr unsigned bytesLength = 4;
+    char bytes[bytesLength + 1];
+    ifs.read(bytes, bytesLength);
+    bytes[bytesLength] = '\0';
+    const auto tag = std::string(bytes);
     const auto checkSum = readUint32();
     const auto offset = readUint32();
     const auto length = readUint32();
@@ -36,16 +36,19 @@ FontReader::FontReader(const std::string& path) {
   if (!directory.contains("glyf")) {
     throw std::runtime_error("Could not find glyf table");
   };
-  loadGlyphOffsets();
-  loadUnicodeToGlyphCodeTable();
+
+  // Load glyph related tables
+  loadGlyphOffsetsMap();
+  loadUnicodeToGlyphCodeMap();
+  loadGlyphMetricsMap();
 }
 
 void FontReader::skipBytes(const unsigned bytes) {
   ifs.seekg(bytes, std::ios::cur);
 }
 
-void FontReader::goTo(const unsigned targetByte) {
-  ifs.seekg(targetByte, std::ios::beg);
+void FontReader::jumpTo(const unsigned byteOffset) {
+  ifs.seekg(byteOffset, std::ios::beg);
 }
 
 template <typename T>
@@ -86,45 +89,44 @@ float FontReader::readF2Dot14() {
   return static_cast<float>(raw) / static_cast<float>(1 << 14);
 }
 
-std::string FontReader::readTag() {
-  constexpr unsigned bytesLength = 4;
-  char b[bytesLength + 1];
-  ifs.read(b, bytesLength);
-  b[bytesLength] = '\0';
-  std::string str(b);
-  return str;
-}
-
-
-void FontReader::loadGlyphOffsets() {
-  goTo(directory["maxp"].offset + 4);
+void FontReader::loadGlyphOffsetsMap() {
+  jumpTo(directory["maxp"].offset + 4);
   const int numGlyphs = readUint16();
 
-  goTo(directory["head"].offset);
-  skipBytes(50);
+  jumpTo(directory["head"].offset);
+  skipBytes(50); // skip until indexToLocFormat
   const auto isTwoByte = readInt16() == 0;
-
-  const auto locationTableOffset = directory["loca"].offset;
   const auto glyphTableOffset = directory["glyf"].offset;
+  const auto locationTableOffset = directory["loca"].offset;
 
-  goTo(locationTableOffset);
+  jumpTo(locationTableOffset);
   for (int i = 0; i < numGlyphs; ++i) {
     const auto glyphOffset = isTwoByte ? readUint16() * 2u : readUint32();
     glyphCodeToOffset[i] = glyphTableOffset + glyphOffset;
   }
+  // Remove offset for empty glyphs
+  for (int i = 1; i < numGlyphs; ++i) {
+    if (glyphCodeToOffset[i] == glyphCodeToOffset[i - 1]) {
+      glyphCodeToOffset[i - 1] = 0;
+    }
+  }
 }
 
+void FontReader::loadGlyphMetricsMap() {
+  jumpTo(directory["hhea"].offset);
+  skipBytes(34); // Skip to numOfLongHorMetrics
+  const u_int16_t numOfMetrics = readUint16();
+  jumpTo(directory["hmtx"].offset);
+  for (int i = 0; i < numOfMetrics; ++i) {
+    const u_int16_t width = readUint16();
+    const int16_t lsb = readInt16();
+    glyphMetric[i] = Metric{width, lsb};
+  }
+}
 
-/**
- * Load Unicode to Glyph code table. Glyph code is not the offset in ttf file,
- * the glyphCodeToOffset is there to retrieve it.
- * Only supports format 12 table for now.
- *
- * https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6cmap.html
- */
-void FontReader::loadUnicodeToGlyphCodeTable() {
+void FontReader::loadUnicodeToGlyphCodeMap() {
   const auto cmapOffset = directory["cmap"].offset;
-  goTo(cmapOffset);
+  jumpTo(cmapOffset);
   skipBytes(2); // skip version
   const uint16_t numSubtables = readUint16();
 
@@ -134,88 +136,117 @@ void FontReader::loadUnicodeToGlyphCodeTable() {
     const auto encoding = readUint16();
     const auto offset = readUint32();
     // Only supports Unicode with format12 for now
-    // format4 support is required for fallback
+    // Ideally format4 should be supported for a fallback
     if (platform == 0 && encoding == 4) subtableOffset = offset;
   }
 
   if (subtableOffset == -1) {
     throw std::runtime_error("Not supported format");
   }
-  goTo(cmapOffset + subtableOffset);
+  jumpTo(cmapOffset + subtableOffset);
 
   // read subtable header to detect format
   const uint16_t format = readUint16();
   if (format == 12) {
-    readCmapFormat12();
+    skipBytes(10); // skip reserved, length, language
+    const uint32_t nGroups = readUint32();
+
+    for (int i = 0; i < nGroups; ++i) {
+      const auto startCharCode = readUint32();
+      const auto endCharCode = readUint32();
+      const auto startGlyphCode = readUint32();
+      unicodeToGlyphCode[startCharCode] = startGlyphCode;
+      const auto diff = (endCharCode - startCharCode);
+      for (int j = 1; j <= diff; ++j) {
+        unicodeToGlyphCode[startCharCode + j] = startGlyphCode + j;
+      }
+    }
   } else {
     throw std::runtime_error("Not supported format");
   }
 }
 
-void FontReader::readCmapFormat12() {
-  skipBytes(10); // skip reserved, length, language
-  const uint32_t nGroups = readUint32();
-
-  for (int i = 0; i < nGroups; ++i) {
-    const auto startCharCode = readUint32();
-    const auto endCharCode = readUint32();
-    const auto startGlyphCode = readUint32();
-    unicodeToGlyphCode[startCharCode] = startGlyphCode;
-    const auto diff = (endCharCode - startCharCode);
-    for (int j = 1; j <= diff; ++j) {
-      unicodeToGlyphCode[startCharCode + j] = startGlyphCode + j;
-    }
+std::pair<std::vector<Glyph>, int> FontReader::getGlyphs(
+    std::vector<uint32_t> cps,
+    const float scale) {
+  // Get glyph data
+  int width = 0;
+  std::vector<Glyph> glyphs(0);
+  for (const auto& cp : cps) {
+    const auto glyph = getGlyph(cp);
+    glyphs.emplace_back(glyph);
+    width += glyph.getMetric().advanceWidth * scale;
   }
+
+  return {glyphs, width};
 }
 
-Glyph FontReader::getGlyph(const std::string& s) {
-  const auto unicode = utf8ToCodepoints(s);
-  return getGlyphByOffset(
-      getGlyphOffsetByUnicode(static_cast<wchar_t>(unicode[0])));
+Glyph FontReader::getGlyph(const uint32_t cp) {
+  if (!unicodeToGlyphCode.contains(cp)) {
+    throw std::runtime_error("Glyph not found");
+  }
+  return getGlyphByCode(unicodeToGlyphCode[cp]);
 }
 
-Glyph FontReader::getGlyphByOffset(const uint32_t offset,
-                                   const glm::mat3& affineMat) {
-  goTo(offset);
+GlyphHeader FontReader::readGlyphHeader(const uint16_t glyphCode) {
+  const auto offset = glyphCodeToOffset[glyphCode];
+  if (offset == 0) {
+    return GlyphHeader{0, BoundingRect{0, 0, 0, 0}};
+  }
+
+  jumpTo(offset);
   // Read glyph description
   const auto numOfContours = readInt16(); // number of contours
-
   BoundingRect boundingRect;
   boundingRect.xMin = readInt16();
   boundingRect.yMin = readInt16();
   boundingRect.xMax = readInt16();
   boundingRect.yMax = readInt16();
 
-  // Read simple glyphs
+  return GlyphHeader{numOfContours, boundingRect};
+}
+
+Glyph FontReader::getGlyphByCode(const uint16_t glyphCode) {
+  const auto [numOfContours, boundingRect] = readGlyphHeader(glyphCode);
   Glyph glyph;
-  if (numOfContours > 0) {
-    glyph = getSimpleGlyph(numOfContours, boundingRect, affineMat);
+  const auto metric = glyphMetric[glyphCode];
+  if (numOfContours == 0) {
+    // No glyph needed i.e. space
+    glyph = Glyph::EmptyGlyph(metric);
+  } else if (numOfContours > 0) {
+    // Read simple glyphs
+    glyph = Glyph({getGlyphComponent(numOfContours, boundingRect)},
+                  metric);
   } else {
     glyph = getCompoundGlyph();
   }
   return glyph;
 }
 
-
-uint32_t FontReader::getGlyphOffsetByUnicode(const wchar_t unicode) {
-  // Convert Unicode -> glyph code (glyph index) -> glyph offset
-  if (unicodeToGlyphCode.contains(unicode)) {
-    const auto glyphCode = unicodeToGlyphCode[unicode];
-    return glyphCodeToOffset[glyphCode];
+std::vector<GlyphComponent> FontReader::getCompoundSubComponents(
+    const uint16_t glyphCode,
+    const glm::mat3& affineMat) {
+  const auto [numOfContours, boundingRect] = readGlyphHeader(glyphCode);
+  std::vector<GlyphComponent> components;
+  if (numOfContours > 0) {
+    // Simple
+    components.emplace_back(
+        getGlyphComponent(numOfContours, boundingRect, affineMat));
+  } else {
+    // Compound: Compound glyph can have nested Compound glyphs
+    const auto subComponents = getCompoundGlyph().getComponents();
+    components.insert(components.begin(), subComponents.begin(),
+                      subComponents.end());
   }
-  throw std::runtime_error(
-      "FontReader: Does not have such glyph");
+  return components;
 }
 
-/**
- * Load simple glyph. Used from getCompoundGlyph to get component glyphs.
- *
- * https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
- */
-Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
-                                 const BoundingRect boundingRect,
-                                 const glm::mat3& affineMat) {
-  std::set<uint16_t> endPtsOfContours;
+GlyphComponent FontReader::getGlyphComponent(
+    const int16_t numOfContours,
+    const BoundingRect boundingRect,
+    const glm::mat3& affineMat) {
+  std::unordered_set<uint16_t> endPtsOfContours;
+
   uint16_t numOfVertices = 1;
   for (int i = 0; i < numOfContours; ++i) {
     const auto point = readUint16();
@@ -227,7 +258,7 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
   skipBytes(readUint16());
 
   std::vector<uint8_t> allFlags(numOfVertices, 0);
-  std::set<uint16_t> ptsOnCurve;
+  std::unordered_set<uint16_t> ptsOnCurve;
 
   uint16_t idx = 0;
   while (idx < numOfVertices) {
@@ -241,12 +272,6 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
     if (Bit::isFlagSet(f, 3)) {
       // REPEAT_FLAG
       const uint8_t repeat = readUint8(); // number of repetitions
-      // check bounds: idx + repeat must be < numOfVertices
-      if (static_cast<uint32_t>(idx) + static_cast<uint32_t>(repeat) >=
-          numOfVertices) {
-        throw std::runtime_error(
-            "FontReader: flags repeat runs past number of vertices");
-      }
       // fill repeats
       for (uint16_t r = 1; r <= repeat; ++r) allFlags[idx + r] = f;
       idx += static_cast<uint16_t>(repeat) + 1;
@@ -255,9 +280,9 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
     }
   }
 
-  const std::vector<int> xCoordinates = readGlyphCoordinates(
+  const std::vector<int> xCoordinates = getGlyphCoordinates(
       numOfVertices, allFlags, true);
-  const std::vector<int> yCoordinates = readGlyphCoordinates(
+  const std::vector<int> yCoordinates = getGlyphCoordinates(
       numOfVertices, allFlags, false);
   std::vector<glm::vec2> coordinates;
   for (int i = 0; i < numOfVertices; ++i) {
@@ -266,18 +291,14 @@ Glyph FontReader::getSimpleGlyph(const int16_t numOfContours,
     coordinates.emplace_back(coord.x, coord.y);
   }
 
-  GlyphComponent component{numOfVertices,
-                           endPtsOfContours,
-                           ptsOnCurve,
-                           boundingRect,
-                           coordinates};
-  return Glyph({component});
+  return GlyphComponent{numOfVertices, endPtsOfContours, ptsOnCurve,
+                        boundingRect, coordinates};
 }
 
-std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
-                                                  const std::vector<uint8_t>&
-                                                  flags,
-                                                  const bool isX) {
+std::vector<int> FontReader::getGlyphCoordinates(const uint16_t& n,
+                                                 const std::vector<uint8_t>&
+                                                 flags,
+                                                 const bool isX) {
   std::vector coordinates(n, 0);
   for (int i = 0; i < n; ++i) {
     const auto f = flags[i];
@@ -301,18 +322,10 @@ std::vector<int> FontReader::readGlyphCoordinates(const uint16_t& n,
   return coordinates;
 }
 
-/**
- * Load compound glyph.
- * ARGS_ARE_XY_VALUES, ROUND_XY_TO_GRID, WE_HAVE_INSTRUCTIONS, OVERLAP_COMPOUND
- * are not supported.
- * Not tested complex affine-transformation thoroughly.
- *
- * https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
- */
 Glyph FontReader::getCompoundGlyph() {
   std::vector<GlyphComponent> components;
   uint16_t flags;
-  BoundingRect rect;
+  Metric metric{};
   do {
     flags = readUint16();
     const uint16_t glyphCode = readUint16();
@@ -373,23 +386,30 @@ Glyph FontReader::getCompoundGlyph() {
     const auto affineMat = glm::mat3(a, b, 0, c, d, 0, m * e, n * f, 1);
 
     // Needs to save the current reader pos since getGlyph jumps to a certain offset pos
-    const auto currentBytePos = ifs.tellg();
-    const auto glyph =
-        getGlyphByOffset(glyphCodeToOffset[glyphCode], affineMat);
-    const auto lc = glyph.getComponents();
-    if (lc.empty()) {
+    const auto currentOffset = ifs.tellg();
+    const auto subComponents =
+        getCompoundSubComponents(glyphCode, affineMat);
+    if (subComponents.empty()) {
       throw std::runtime_error(
           "FontReader: Something went wrong with loading component glyphs");
     }
-    components.insert(components.end(), lc.begin(), lc.end());
+    components.insert(components.end(), subComponents.begin(),
+                      subComponents.end());
 
     if (useMetrics) {
-      // TODO: Maybe "metrics" does not mean bounding rect, but positioning??
-      rect = lc[0].getBoundingRect();
+      metric = glyphMetric[glyphCode];
     }
     // Reload the prev reader pos for the next loop
-    goTo(currentBytePos);
+    jumpTo(currentOffset);
   } while (Bit::isFlagSet(flags, 5)); // MORE_COMPONENTS
 
-  return Glyph(components, rect);
+  return Glyph(components, metric);
+}
+
+FontMetric FontReader::getFontMetric() {
+  jumpTo(directory["hhea"].offset);
+  skipBytes(4);
+  const auto ascent = readInt16();
+  const auto descent = readInt16();
+  return FontMetric{ascent, descent};
 }

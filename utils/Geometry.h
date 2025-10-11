@@ -1,7 +1,3 @@
-//
-// Created by yoh on 01/10/25.
-//
-
 #pragma once
 #ifndef GEOMETORY_H
 #define GEOMETORY_H
@@ -11,6 +7,7 @@
 #include <iostream>
 #include <optional>
 
+#include "Debug.h"
 #include "glm/glm.hpp"
 
 struct BoundingRect {
@@ -20,12 +17,18 @@ struct BoundingRect {
   int yMax = 0;
 };
 
-constexpr auto eps = 1e-8f;
+constexpr auto eps = std::numeric_limits<float>::epsilon();
 
 inline std::ostream& operator<<(std::ostream& out, const BoundingRect& b) {
   out << b.xMin << ":" << b.xMax << ":" << b.yMin << ":" << b.yMax <<
       std::endl;
   return out;
+}
+
+inline glm::vec2 transformVec2(const glm::mat3& M, const glm::vec2& v) {
+  const glm::vec3 hv(v, 1.0f);
+  const glm::vec3 r = M * hv;
+  return {r.x, r.y};
 }
 
 /**
@@ -94,6 +97,33 @@ inline std::optional<glm::vec2> segmentsIntersect(
     return a1 + t * v1;
   }
   return std::nullopt;
+}
+
+inline bool isPointOnSegment(
+    const glm::vec2& p, // point
+    const glm::vec2& a1, // segment start
+    const glm::vec2& a2 // segment end
+    ) {
+  const glm::vec2 v = a2 - a1;
+  const glm::vec2 w = p - a1;
+
+  const float vlen2 = dot(v, v);
+  if (vlen2 <= eps) return length(w) <= eps;
+
+  // Check if the point is on the linear function
+  const float cross = v.x * w.y - v.y * w.x;
+  if (cross * cross > (eps * eps * vlen2)) return false;
+
+  // Check if the point is in the segment area
+  const float dot1 = dot(w, v);
+  if (dot1 < -eps * vlen2) {
+    return false;
+  }
+  if (dot1 > vlen2 + eps * vlen2) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -180,11 +210,27 @@ inline int getBezierMinY(
   }
   // find the parameter when the curve reaches its extremum by taking the derivative
   const auto t = -b / (2.0f * a);
-  // if the curve is convex upwards, the extremum can be the maximum y
+  // if the curve is convex upwards, the extremum can be the minimum y
   if (-eps <= t && t <= 1.0f + eps && a > 0) {
     return static_cast<int>(a * t * t + b * t + p1.y);
   }
   return static_cast<int>(std::min(p1.y, p3.y));
+}
+
+/**
+ *  Check whether the quadratic Bézier curve is convex upwards at the top-left origin coordinate.
+ *
+ * @param p1 Bézier start point
+ * @param p2 Bézier control point
+ * @param p3 Bézier end point
+ * @return true if the Bézier curve concave up
+ */
+inline bool isBezierConvexUpwards(
+    const glm::vec2& p1, // bezier start
+    const glm::vec2& p2, // bezier control
+    const glm::vec2& p3 // bezier end
+    ) {
+  return p1.y - 2 * p2.y + p3.y > 0;
 }
 
 #endif //GEOMETORY_H

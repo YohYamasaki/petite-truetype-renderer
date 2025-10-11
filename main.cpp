@@ -2,14 +2,25 @@
 
 #include "FontReader.h"
 #include "FrameBufferCanvas.h"
+#include "utils/Unicode.h"
 
 int main() {
-  FontReader reader("fonts/JetBrainsMono-Bold.ttf");
-  FrameBufferCanvas canvas{1200, 1200};
-  const Glyph glyph = reader.getGlyph("g");
-  canvas.renderGlyph(glm::vec2(300, 300), glyph, RGB{255});
+  // Settings
+  FontReader reader("fonts/NotoSansJP-Regular.ttf");
+  const auto cps = utf8ToCodepoints("ほげ");
+  constexpr int height = 300;
 
+  // Get font metric data
+  const auto [ascent, descent] = reader.getFontMetric();
+  const float scale = static_cast<float>(height) / (ascent - descent);
+
+  // Get glyphs and the necessary total width
+  const auto [glyphs, width] = reader.getGlyphs(cps, scale);
+
+  // Initialize canvas and render glyphs
+  FrameBufferCanvas canvas{width, height};
+  canvas.setGlyphBaseline(ascent);
+  canvas.setScale(scale);
+  canvas.renderGlyphs(glyphs);
   canvas.writePngFile("out.png");
-
-  return 0;
 }

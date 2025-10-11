@@ -1,7 +1,3 @@
-//
-// Created by yoh on 28/09/25.
-//
-
 #include "GlyphComponent.h"
 
 #include <algorithm>
@@ -10,8 +6,8 @@
 #include <vector>
 
 GlyphComponent::GlyphComponent(uint16_t numOfVertices_,
-                               std::set<uint16_t> endPtsOfContours_,
-                               std::set<uint16_t> ptsOnCurve_,
+                               std::unordered_set<uint16_t> endPtsOfContours_,
+                               std::unordered_set<uint16_t> ptsOnCurve_,
                                BoundingRect boundingRect_,
                                std::vector<glm::vec2> coordinates_)
   : numOfVertices(numOfVertices_),
@@ -25,11 +21,12 @@ uint16_t GlyphComponent::getNumOfVertices() const {
   return numOfVertices;
 }
 
-const std::set<uint16_t>& GlyphComponent::getEndPtsOfContours() const {
+const std::unordered_set<uint16_t>&
+GlyphComponent::getEndPtsOfContours() const {
   return endPtsOfContours;
 }
 
-const std::set<uint16_t>& GlyphComponent::getPtsOnCurve() const {
+const std::unordered_set<uint16_t>& GlyphComponent::getPtsOnCurve() const {
   return ptsOnCurve;
 }
 
