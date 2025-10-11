@@ -1,6 +1,9 @@
 # Petite-truetype-renderer
 
-In the very WIP state!
+The aim of this project is to teach myself how font rendering works on computers by implementing everything from
+scratch. (except for the linear algebra library and the PNG image writer)
 
-The first goal of this project is to learn modern GPU-centric vector data rasterisation techniques by implementing them
-from scratch.
+Please note that it is not intended for use in
+production systems.
+
+The next step of this project is to implement modern GPU-centric vector data rasterisation techniques.
