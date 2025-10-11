@@ -1,4 +1,4 @@
-#include "FontReader.h"
+#include "FontParser.h"
 
 #include <cmath>
 #include <iostream>
@@ -9,7 +9,7 @@
 #include "utils/Geometry.h"
 #include "utils/Unicode.h"
 
-FontReader::FontReader(const std::string& path) {
+FontParser::FontParser(const std::string& path) {
   ifs.open(path, std::ios::binary);
   if (!ifs) {
     std::cerr << "failed to open file\n";
@@ -43,16 +43,16 @@ FontReader::FontReader(const std::string& path) {
   loadGlyphMetricsMap();
 }
 
-void FontReader::skipBytes(const unsigned bytes) {
+void FontParser::skipBytes(const unsigned bytes) {
   ifs.seekg(bytes, std::ios::cur);
 }
 
-void FontReader::jumpTo(const unsigned byteOffset) {
+void FontParser::jumpTo(const unsigned byteOffset) {
   ifs.seekg(byteOffset, std::ios::beg);
 }
 
 template <typename T>
-T FontReader::readBeOrThrow() {
+T FontParser::readBeOrThrow() {
   static_assert(std::is_integral_v<T>, "T must be integral");
 
   uint32_t acc = 0;
@@ -77,19 +77,19 @@ T FontReader::readBeOrThrow() {
   }
 }
 
-uint8_t FontReader::readUint8() { return readBeOrThrow<uint8_t>(); }
-uint16_t FontReader::readUint16() { return readBeOrThrow<uint16_t>(); }
-uint32_t FontReader::readUint32() { return readBeOrThrow<uint32_t>(); }
-int8_t FontReader::readInt8() { return readBeOrThrow<int8_t>(); }
-int16_t FontReader::readInt16() { return readBeOrThrow<int16_t>(); }
-int32_t FontReader::readInt32() { return readBeOrThrow<int32_t>(); }
+uint8_t FontParser::readUint8() { return readBeOrThrow<uint8_t>(); }
+uint16_t FontParser::readUint16() { return readBeOrThrow<uint16_t>(); }
+uint32_t FontParser::readUint32() { return readBeOrThrow<uint32_t>(); }
+int8_t FontParser::readInt8() { return readBeOrThrow<int8_t>(); }
+int16_t FontParser::readInt16() { return readBeOrThrow<int16_t>(); }
+int32_t FontParser::readInt32() { return readBeOrThrow<int32_t>(); }
 
-float FontReader::readF2Dot14() {
+float FontParser::readF2Dot14() {
   const auto raw = readBeOrThrow<int16_t>();
   return static_cast<float>(raw) / static_cast<float>(1 << 14);
 }
 
-void FontReader::loadGlyphOffsetsMap() {
+void FontParser::loadGlyphOffsetsMap() {
   jumpTo(directory["maxp"].offset + 4);
   const int numGlyphs = readUint16();
 
@@ -112,7 +112,7 @@ void FontReader::loadGlyphOffsetsMap() {
   }
 }
 
-void FontReader::loadGlyphMetricsMap() {
+void FontParser::loadGlyphMetricsMap() {
   jumpTo(directory["hhea"].offset);
   skipBytes(34); // Skip to numOfLongHorMetrics
   const u_int16_t numOfMetrics = readUint16();
@@ -124,7 +124,7 @@ void FontReader::loadGlyphMetricsMap() {
   }
 }
 
-void FontReader::loadUnicodeToGlyphCodeMap() {
+void FontParser::loadUnicodeToGlyphCodeMap() {
   const auto cmapOffset = directory["cmap"].offset;
   jumpTo(cmapOffset);
   skipBytes(2); // skip version
@@ -166,7 +166,7 @@ void FontReader::loadUnicodeToGlyphCodeMap() {
   }
 }
 
-std::pair<std::vector<Glyph>, int> FontReader::getGlyphs(
+std::pair<std::vector<Glyph>, int> FontParser::getGlyphs(
     std::vector<uint32_t> cps,
     const float scale) {
   // Get glyph data
@@ -181,14 +181,14 @@ std::pair<std::vector<Glyph>, int> FontReader::getGlyphs(
   return {glyphs, width};
 }
 
-Glyph FontReader::getGlyph(const uint32_t cp) {
+Glyph FontParser::getGlyph(const uint32_t cp) {
   if (!unicodeToGlyphCode.contains(cp)) {
     throw std::runtime_error("Glyph not found");
   }
   return getGlyphByCode(unicodeToGlyphCode[cp]);
 }
 
-GlyphHeader FontReader::readGlyphHeader(const uint16_t glyphCode) {
+GlyphHeader FontParser::readGlyphHeader(const uint16_t glyphCode) {
   const auto offset = glyphCodeToOffset[glyphCode];
   if (offset == 0) {
     return GlyphHeader{0, BoundingRect{0, 0, 0, 0}};
@@ -206,7 +206,7 @@ GlyphHeader FontReader::readGlyphHeader(const uint16_t glyphCode) {
   return GlyphHeader{numOfContours, boundingRect};
 }
 
-Glyph FontReader::getGlyphByCode(const uint16_t glyphCode) {
+Glyph FontParser::getGlyphByCode(const uint16_t glyphCode) {
   const auto [numOfContours, boundingRect] = readGlyphHeader(glyphCode);
   Glyph glyph;
   const auto metric = glyphMetric[glyphCode];
@@ -223,7 +223,7 @@ Glyph FontReader::getGlyphByCode(const uint16_t glyphCode) {
   return glyph;
 }
 
-std::vector<GlyphComponent> FontReader::getCompoundSubComponents(
+std::vector<GlyphComponent> FontParser::getCompoundSubComponents(
     const uint16_t glyphCode,
     const glm::mat3& affineMat) {
   const auto [numOfContours, boundingRect] = readGlyphHeader(glyphCode);
@@ -241,7 +241,7 @@ std::vector<GlyphComponent> FontReader::getCompoundSubComponents(
   return components;
 }
 
-GlyphComponent FontReader::getGlyphComponent(
+GlyphComponent FontParser::getGlyphComponent(
     const int16_t numOfContours,
     const BoundingRect boundingRect,
     const glm::mat3& affineMat) {
@@ -264,12 +264,12 @@ GlyphComponent FontReader::getGlyphComponent(
   while (idx < numOfVertices) {
     const uint8_t f = readUint8();
     allFlags[idx] = f;
-    if (Bit::isFlagSet(f, 0)) {
+    if (isFlagSet(f, 0)) {
       //ON_CURVE_POINT
       ptsOnCurve.insert(idx);
     }
 
-    if (Bit::isFlagSet(f, 3)) {
+    if (isFlagSet(f, 3)) {
       // REPEAT_FLAG
       const uint8_t repeat = readUint8(); // number of repetitions
       // fill repeats
@@ -295,24 +295,24 @@ GlyphComponent FontReader::getGlyphComponent(
                         boundingRect, coordinates};
 }
 
-std::vector<int> FontReader::getGlyphCoordinates(const uint16_t& n,
+std::vector<int> FontParser::getGlyphCoordinates(const uint16_t& n,
                                                  const std::vector<uint8_t>&
                                                  flags,
                                                  const bool isX) {
   std::vector coordinates(n, 0);
   for (int i = 0; i < n; ++i) {
     const auto f = flags[i];
-    const auto isShort = Bit::isFlagSet(f, isX ? 1 : 2);
+    const auto isShort = isFlagSet(f, isX ? 1 : 2);
     int pos = coordinates[i == 0 ? 0 : i - 1];
 
     if (isShort) {
-      const auto isPositive = Bit::isFlagSet(f, isX ? 4 : 5);
+      const auto isPositive = isFlagSet(f, isX ? 4 : 5);
       const auto offset = isPositive
                             ? readUint8()
                             : -1 * static_cast<int>(readUint8());
       pos += offset;
     } else {
-      if (!Bit::isFlagSet(f, isX ? 4 : 5)) {
+      if (!isFlagSet(f, isX ? 4 : 5)) {
         pos += readInt16();
       };
     }
@@ -322,7 +322,7 @@ std::vector<int> FontReader::getGlyphCoordinates(const uint16_t& n,
   return coordinates;
 }
 
-Glyph FontReader::getCompoundGlyph() {
+Glyph FontParser::getCompoundGlyph() {
   std::vector<GlyphComponent> components;
   uint16_t flags;
   Metric metric{};
@@ -330,15 +330,15 @@ Glyph FontReader::getCompoundGlyph() {
     flags = readUint16();
     const uint16_t glyphCode = readUint16();
     // read flags
-    const bool isWord = Bit::isFlagSet(flags, 0);
-    const bool isXyValue = Bit::isFlagSet(flags, 1); // not implemented
-    const bool roundXyGrid = Bit::isFlagSet(flags, 2); // not implemented
-    const bool hasScale = Bit::isFlagSet(flags, 3);
-    const bool hasXScale = Bit::isFlagSet(flags, 6);
-    const bool hasTwoByTwo = Bit::isFlagSet(flags, 7);
-    const bool hasInstruction = Bit::isFlagSet(flags, 8); // not implemented
-    const bool useMetrics = Bit::isFlagSet(flags, 9);
-    const bool overlap = Bit::isFlagSet(flags, 10); // not implemented
+    const bool isWord = isFlagSet(flags, 0);
+    const bool isXyValue = isFlagSet(flags, 1); // not implemented
+    const bool roundXyGrid = isFlagSet(flags, 2); // not implemented
+    const bool hasScale = isFlagSet(flags, 3);
+    const bool hasXScale = isFlagSet(flags, 6);
+    const bool hasTwoByTwo = isFlagSet(flags, 7);
+    const bool hasInstruction = isFlagSet(flags, 8); // not implemented
+    const bool useMetrics = isFlagSet(flags, 9);
+    const bool overlap = isFlagSet(flags, 10); // not implemented
 
     // read arguments (arg1,arg2) either words or bytes (signed)
     int32_t arg1 = 0, arg2 = 0;
@@ -391,7 +391,7 @@ Glyph FontReader::getCompoundGlyph() {
         getCompoundSubComponents(glyphCode, affineMat);
     if (subComponents.empty()) {
       throw std::runtime_error(
-          "FontReader: Something went wrong with loading component glyphs");
+          "FontParser: Something went wrong with loading component glyphs");
     }
     components.insert(components.end(), subComponents.begin(),
                       subComponents.end());
@@ -401,12 +401,12 @@ Glyph FontReader::getCompoundGlyph() {
     }
     // Reload the prev reader pos for the next loop
     jumpTo(currentOffset);
-  } while (Bit::isFlagSet(flags, 5)); // MORE_COMPONENTS
+  } while (isFlagSet(flags, 5)); // MORE_COMPONENTS
 
   return Glyph(components, metric);
 }
 
-FontMetric FontReader::getFontMetric() {
+FontMetric FontParser::getFontMetric() {
   jumpTo(directory["hhea"].offset);
   skipBytes(4);
   const auto ascent = readInt16();

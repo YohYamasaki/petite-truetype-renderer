@@ -1,12 +1,12 @@
 #include <fstream>
 
-#include "FontReader.h"
+#include "FontParser.h"
 #include "FrameBufferCanvas.h"
 #include "utils/Unicode.h"
 
 int main() {
   // Settings
-  FontReader reader("fonts/NotoSansJP-Regular.ttf");
+  FontParser reader("fonts/NotoSansJP-Regular.ttf");
   const auto cps = utf8ToCodepoints("ほげ");
   constexpr int height = 300;
 

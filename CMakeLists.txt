@@ -7,9 +7,8 @@ find_package(Stb REQUIRED)
 find_package(glm CONFIG REQUIRED)
 
 add_executable(petite_truetype_renderer main.cpp
-        FontReader.cpp
-        FontReader.h
-        utils/Bit.cpp
+        FontParser.cpp
+        FontParser.h
         utils/Bit.h
         GlyphComponent.cpp
         GlyphComponent.h

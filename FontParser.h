@@ -1,6 +1,6 @@
 #pragma once
-#ifndef FONTREADER_H
-#define FONTREADER_H
+#ifndef FONTPARSER_H
+#define FONTPARSER_H
 #include <fstream>
 #include <map>
 #include <unordered_map>
@@ -9,7 +9,7 @@
 #include "Glyph.h"
 
 
-#endif  // FONTREADER_H
+#endif  // FONTPARSER_H
 
 struct Tag {
   uint32_t checkSum;
@@ -27,9 +27,9 @@ struct FontMetric {
   int16_t descent;
 };
 
-class FontReader {
+class FontParser {
 public:
-  explicit FontReader(const std::string& path);
+  explicit FontParser(const std::string& path);
   /**
    * Get general metrics for font.
    * @return FontMetric that has ascent and descent of font

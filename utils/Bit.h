@@ -1,14 +1,9 @@
-//
-// Created by yoh on 28/09/25.
-//
-
 #pragma once
 #ifndef UTILS_H
 #define UTILS_H
 
-#endif  // UTILS_H
+inline bool isFlagSet(const int flag, const int targetIdx) {
+  return ((flag >> targetIdx) & 1) == 1;
+}
 
-class Bit {
- public:
-  static bool isFlagSet(int flag, int targetIdx);
-};
+#endif  // UTILS_H
