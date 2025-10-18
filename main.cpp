@@ -8,7 +8,7 @@ int main() {
   // Settings
   FontParser reader("fonts/NotoSansJP-Regular.ttf");
   const auto cps = utf8ToCodepoints("ほげ");
-  constexpr int height = 300;
+  constexpr int height = 800;
 
   // Get font metric data
   const auto [ascent, descent] = reader.getFontMetric();
