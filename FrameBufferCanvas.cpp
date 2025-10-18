@@ -350,17 +350,7 @@ void FrameBufferCanvas::renderGlyphByNonZero(const Glyph& glyph,
               );
 
           const auto minY = getBezierMinY(prevPt, currentPt, nextPt);
-          if (ss.size() == 2 &&
-              !isBezierConvexUpwards(prevPt, currentPt, nextPt)) {
-            if (y == static_cast<int>(prevPt.x) || y == static_cast<int>(nextPt.
-                  x)) {
-              if (static_cast<int>(ss[0].x) == static_cast<int>(prevPt.x)) {
-                intersections.emplace_back(static_cast<int>(ss[1].x));
-              } else {
-                intersections.emplace_back(static_cast<int>(ss[0].x));
-              }
-            }
-          } else if (minY < y) {
+          if (minY < y) {
             if (ss.size() == 1) {
               intersections.emplace_back(static_cast<int>(ss[0].x),
                                          prevPt.y > nextPt.y);
