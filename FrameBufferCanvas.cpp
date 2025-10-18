@@ -224,7 +224,18 @@ void FrameBufferCanvas::renderGlyphByEvenOdd(const Glyph& glyph,
               rayEnd
               );
           const auto minY = getBezierMinY(prevPt, currentPt, nextPt);
-          if (minY < y) {
+
+          if (ss.size() == 2 &&
+              !isBezierConvexUpwards(prevPt, currentPt, nextPt)) {
+            if (y == static_cast<int>(prevPt.x) || y == static_cast<int>(nextPt.
+                  x)) {
+              if (static_cast<int>(ss[0].x) == static_cast<int>(prevPt.x)) {
+                intersections.emplace_back(static_cast<int>(ss[1].x));
+              } else {
+                intersections.emplace_back(static_cast<int>(ss[0].x));
+              }
+            }
+          } else if (minY < y) {
             for (const auto s : ss) {
               intersections.emplace_back(static_cast<int>(s.x));
             }
@@ -339,7 +350,17 @@ void FrameBufferCanvas::renderGlyphByNonZero(const Glyph& glyph,
               );
 
           const auto minY = getBezierMinY(prevPt, currentPt, nextPt);
-          if (minY < y) {
+          if (ss.size() == 2 &&
+              !isBezierConvexUpwards(prevPt, currentPt, nextPt)) {
+            if (y == static_cast<int>(prevPt.x) || y == static_cast<int>(nextPt.
+                  x)) {
+              if (static_cast<int>(ss[0].x) == static_cast<int>(prevPt.x)) {
+                intersections.emplace_back(static_cast<int>(ss[1].x));
+              } else {
+                intersections.emplace_back(static_cast<int>(ss[0].x));
+              }
+            }
+          } else if (minY < y) {
             if (ss.size() == 1) {
               intersections.emplace_back(static_cast<int>(ss[0].x),
                                          prevPt.y > nextPt.y);
